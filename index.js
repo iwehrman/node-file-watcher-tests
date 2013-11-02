@@ -14,16 +14,50 @@ if (process.platform === "darwin") {
     fsevents = undefined;
 }
 
-function range(count) {
+var WIDTH = 2,
+    DEPTH = 10;
+
+var changedPaths = {};
+
+function range(count, getValue) {
     var result = [],
         index = 0;
     
+    if (getValue === undefined) {
+        getValue = function (x) { return x; };
+    }
+    
     while (index < count) {
-        result.push(index++);
+        result.push(getValue(index++));
     }
     
     return result;
 }
+
+function randomBit() {
+    return Math.round(Math.random());
+}
+
+function randomBitVector(count) {
+    return range(count, randomBit);
+}
+
+function randomPath(depth) {
+    return randomBitVector.join("/");
+}
+
+function triggerChange(path) {
+    fs.appendFile(".");
+}
+
+function watcherTest() {
+    var depth = Math.floor(Math.random() * DEPTH) + 1,
+        path = randomPath(DEPTH);
+    
+    
+    triggerChange(path);
+}
+
 
 function createDirectories(path, width, depth) {
     if (--depth < 0) {
@@ -98,14 +132,19 @@ function getAllDirectories(dirname) {
         });
 }
 
-function watchPath(path, callback) {
+function watchPath(path, force, callback) {
     var watcher;
+    
+    if (typeof force === "function") {
+        callback = force;
+        force = false;
+    }
     
     if (path[path.length - 1] === "/") {
         path = path.substring(0, path.length - 1);
     }
     
-    if (fsevents) {
+    if (fsevents && !force) {
         console.log("Recursively watching: ", path);
         watcher = fsevents(path);
         watcher.on("change", function (path, info) {
@@ -129,6 +168,14 @@ function watchPath(path, callback) {
     }
 }
 
+function watchedFileCallback(path) {
+    if (changedPaths.hasOwnProperty(path)) {
+        console.log("Received expected change for: ", path);
+    } else {
+        console.log("Received unexpected change for: ", path);
+    }
+}
+
 var path = process.argv.length > 2 ? process.argv[2] : null;
 
 if (!path) {
@@ -136,11 +183,5 @@ if (!path) {
     process.exit(1);
 }
 
-console.log("Path: ", path);
-
-function watchedFileCallback(path) {
-    console.log("change: ", path);
-}
-
-createDirectories(path, 2, 5)
+createDirectories(path, 2, 10)
     .then(watchPath.bind(undefined, path, watchedFileCallback));
